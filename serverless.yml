@@ -1,0 +1,131 @@
+org: diegoladrondeg
+service: api-gestion-usuarios
+
+provider:
+  name: aws
+  runtime: python3.11
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 1024
+  timeout: 60 # Aumentado a 60 segundos por la llamada a la IA de Replicate
+  
+  # Usamos tu rol IAM proporcionado (804190897568)
+  iam:
+    role: arn:aws:iam::804190897568:role/LabRole
+    # Inyectamos permisos adicionales necesarios a tu LabRole
+    iamRoleStatements:
+      # 1. Permiso para usar Amazon Rekognition (Análisis de imágenes)
+      - Effect: Allow
+        Action:
+          - rekognition:DetectLabels
+          - rekognition:DetectFaces
+        Resource: "*"
+      # 2. Permiso para leer la clave API de Secrets Manager (Seguridad de clave externa)
+      - Effect: Allow
+        Action:
+          - secretsmanager:GetSecretValue
+        Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ExternalApiKeySecret-*"
+  
+  # Variables de Entorno para las Lambdas
+  environment:
+    DYNAMODB_TABLE_NAME: ${self:custom.usuarioTableName.${self:provider.stage}}
+    S3_BUCKET_NAME: ${self:custom.imagesBucketName.${self:provider.stage}}
+    STAGE: ${self:provider.stage}
+
+
+# --- Funciones Lambda ---
+functions:
+  # 1. Función de Registro
+  register:
+    handler: src/register.lambda_handler
+    events:
+      - http:
+          path: /auth/register
+          method: post
+          cors: true
+
+  # 2. Función de Login
+  login:
+    handler: src/login.lambda_handler
+    events:
+      - http:
+          path: /auth/login
+          method: post
+          cors: true
+
+  # 3. Función para obtener URL de subida
+  get_upload_url:
+    handler: src/get_upload_url.lambda_handler
+    events:
+      - http:
+          path: /images/upload-url
+          method: post
+          cors: true
+
+  # 4. NUEVA FUNCIÓN: Análisis con IA y Generación Artística
+  ai_generate:
+    handler: src/ai_generate.lambda_handler
+    timeout: 60
+    memorySize: 1024
+    events:
+      - http:
+          path: /images/generate
+          method: post
+          cors: true
+    environment:
+      # Pasamos el nombre del secreto para que la Lambda lo busque
+      EXTERNAL_SECRET_NAME: ExternalApiKeySecret-${self:provider.stage}
+
+
+# --- Nombres Personalizados (Custom) ---
+custom:
+  usuarioTableName:
+    dev: ${self:service}-dev-usuario_bd
+    test: ${self:service}-test-usuario_bd
+    prod: ${self:service}-prod-usuario_bd
+
+  imagesBucketName:
+    dev: ${self:service}-dev-images-bucket
+    test: ${self:service}-test-images-bucket
+    prod: ${self:service}-prod-images-bucket
+
+
+# --- Recursos Adicionales (DynamoDB, S3 y Secrets Manager) ---
+resources:
+  Resources:
+    # 1. Tabla DynamoDB 'usuario_bd'
+    UsuarioDBTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.usuarioTableName.${self:provider.stage}}
+        AttributeDefinitions:
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: email
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    # 2. Bucket S3 para las imágenes de los usuarios
+    ImagesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.imagesBucketName.${self:provider.stage}}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - PUT
+              AllowedOrigins:
+                - '*'
+              MaxAge: 3000
+              
+    # 3. SECRETS MANAGER para el token de Replicate
+    ExternalApiKeySecret:
+      Type: AWS::SecretsManager::Secret
+      Properties:
+        Name: ExternalApiKeySecret-${self:provider.stage}
+        Description: Token API para la plataforma Replicate (Generación de imágenes Stable Diffusion)
+        # 🟢 ¡TOKEN DE REPLICATE INSERTADO AQUÍ!
+        SecretString: "PEGUEA_AQUI_TU_TOKEN"

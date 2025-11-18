@@ -1,0 +1,3 @@
+replicate
+requests
+boto3
