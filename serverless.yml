@@ -9,22 +9,22 @@ provider:
   memorySize: 1024
   timeout: 60 # Aumentado a 60 segundos por la llamada a la IA de Replicate
   
-  # Usamos tu rol IAM proporcionado (804190897568)
+role: arn:aws:iam::804190897568:role/LabRole
+  
   iam:
-    role: arn:aws:iam::804190897568:role/LabRole
-    # Inyectamos permisos adicionales necesarios a tu LabRole
-    iamRoleStatements:
-      # 1. Permiso para usar Amazon Rekognition (Análisis de imágenes)
-      - Effect: Allow
-        Action:
-          - rekognition:DetectLabels
-          - rekognition:DetectFaces
-        Resource: "*"
-      # 2. Permiso para leer la clave API de Secrets Manager (Seguridad de clave externa)
-      - Effect: Allow
-        Action:
-          - secretsmanager:GetSecretValue
-        Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ExternalApiKeySecret-*"
+    role:
+      statements:
+        # 1. Permiso para usar Amazon Rekognition
+        - Effect: Allow
+          Action:
+            - rekognition:DetectLabels
+            - rekognition:DetectFaces
+          Resource: "*"
+        # 2. Permiso para leer la clave API de Secrets Manager
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ExternalApiKeySecret-*"
   
   # Variables de Entorno para las Lambdas
   environment:
@@ -128,4 +128,5 @@ resources:
         Name: ExternalApiKeySecret-${self:provider.stage}
         Description: Token API para la plataforma Replicate (Generación de imágenes Stable Diffusion)
         # 🟢 ¡TOKEN DE REPLICATE INSERTADO AQUÍ!
+
         SecretString: "PEGUEA_AQUI_TU_TOKEN"
