@@ -11,7 +11,7 @@ provider:
   
   # 🟢 CORRECCIÓN 1: La sintaxis de 'role' e 'iam' para Serverless V4
   # Asignamos el ARN del rol académico existente
-  role: arn:aws:iam::804190897568:role/LabRole
+  role: arn:aws:iam::049376646199:role/LabRole
   
   # Definimos las declaraciones adicionales que se deben aplicar a ese rol
   iam:
@@ -136,3 +136,4 @@ resources:
         # ⚠️ IMPORTANTE: Recuerda que este valor es un placeholder para evitar el error de GitHub.
         # Debes actualizarlo manualmente en Secrets Manager después de desplegar.
         SecretString: "PLACEHOLDER_TOKEN_DEBE_SER_ACTUALIZADO"
+
