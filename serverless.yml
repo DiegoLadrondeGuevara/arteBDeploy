@@ -9,53 +9,26 @@ provider:
   memorySize: 1024
   timeout: 60
   
-  # 🟢 CORRECCIÓN 1: La sintaxis de 'role' e 'iam' para Serverless V4
-  # Asignamos el ARN del rol académico existente
-  role: arn:aws:iam::049376646199:role/LabRole
-  
-  # Definimos las declaraciones adicionales que se deben aplicar a ese rol
   iam:
-    role:
-      statements:
-        # 1. Permiso para usar Amazon Rekognition (Análisis de imágenes)
-        - Effect: Allow
-          Action:
-            - rekognition:DetectLabels
-            - rekognition:DetectFaces
-          Resource: "*"
-        # 2. Permiso para leer la clave API de Secrets Manager
-        - Effect: Allow
-          Action:
-            - secretsmanager:GetSecretValue
-          Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ExternalApiKeySecret-*"
-  
-  # Variables de Entorno
+    role: arn:aws:iam::804190897568:role/LabRole
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - rekognition:DetectLabels
+          - rekognition:DetectFaces
+        Resource: "*"
+
+      - Effect: Allow
+        Action:
+          - secretsmanager:GetSecretValue
+        Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ExternalApiKeySecret-*"
+
   environment:
     DYNAMODB_TABLE_NAME: ${self:custom.usuarioTableName.${self:provider.stage}}
     S3_BUCKET_NAME: ${self:custom.imagesBucketName.${self:provider.stage}}
     STAGE: ${self:provider.stage}
 
-
-# 🟢 CORRECCIÓN 2: Configuración del comando Python para el plugin (ENOENT fix)
-custom:
-  # Opciones para el plugin de requisitos de Python
-  pythonRequirements:
-    pythonBin: python3 # Usamos 'python3' en lugar de 'python3.11' para evitar el error ENOENT en muchos Linux
-  
-  usuarioTableName:
-    dev: ${self:service}-dev-usuario_bd
-    test: ${self:service}-test-usuario_bd
-    prod: ${self:service}-prod-usuario_bd
-
-  imagesBucketName:
-    dev: ${self:service}-dev-images-bucket
-    test: ${self:service}-test-images-bucket
-    prod: ${self:service}-prod-images-bucket
-
-
-# --- Funciones Lambda ---
 functions:
-  # 1. Función de Registro
   register:
     handler: src/register.lambda_handler
     events:
@@ -64,7 +37,6 @@ functions:
           method: post
           cors: true
 
-  # 2. Función de Login
   login:
     handler: src/login.lambda_handler
     events:
@@ -73,7 +45,6 @@ functions:
           method: post
           cors: true
 
-  # 3. Función para obtener URL de subida
   get_upload_url:
     handler: src/get_upload_url.lambda_handler
     events:
@@ -82,7 +53,6 @@ functions:
           method: post
           cors: true
 
-  # 4. Función de Análisis y Generación de Imagen
   ai_generate:
     handler: src/ai_generate.lambda_handler
     timeout: 60
@@ -95,11 +65,19 @@ functions:
     environment:
       EXTERNAL_SECRET_NAME: ExternalApiKeySecret-${self:provider.stage}
 
+custom:
+  usuarioTableName:
+    dev: ${self:service}-dev-usuario_bd
+    test: ${self:service}-test-usuario_bd
+    prod: ${self:service}-prod-usuario_bd
 
-# --- Recursos Adicionales (DynamoDB, S3 y Secrets Manager) ---
+  imagesBucketName:
+    dev: ${self:service}-dev-images-bucket
+    test: ${self:service}-test-images-bucket
+    prod: ${self:service}-prod-images-bucket
+
 resources:
   Resources:
-    # 1. Tabla DynamoDB 'usuario_bd'
     UsuarioDBTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -112,28 +90,53 @@ resources:
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
 
-    # 2. Bucket S3 para las imágenes de los usuarios
+    # --- Bucket S3 PÚBLICO ---
     ImagesBucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ${self:custom.imagesBucketName.${self:provider.stage}}
+
         CorsConfiguration:
           CorsRules:
             - AllowedHeaders:
                 - '*'
               AllowedMethods:
+                - GET
                 - PUT
+                - HEAD
               AllowedOrigins:
                 - '*'
               MaxAge: 3000
-              
-    # 3. Secrets Manager para el token de Replicate
+
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false
+
+    ImagesBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: ImagesBucket
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Sid: PublicReadForAllObjects
+              Effect: Allow
+              Principal: "*"
+              Action:
+                - s3:GetObject
+              Resource:
+                Fn::Join:
+                  - ""
+                  - - "arn:aws:s3:::"
+                    - ${self:custom.imagesBucketName.${self:provider.stage}}
+                    - "/*"
+
     ExternalApiKeySecret:
       Type: AWS::SecretsManager::Secret
       Properties:
         Name: ExternalApiKeySecret-${self:provider.stage}
-        Description: Token API para la plataforma Replicate (Generación de imágenes Stable Diffusion)
-        # ⚠️ IMPORTANTE: Recuerda que este valor es un placeholder para evitar el error de GitHub.
-        # Debes actualizarlo manualmente en Secrets Manager después de desplegar.
-        SecretString: "PLACEHOLDER_TOKEN_DEBE_SER_ACTUALIZADO"
-
+        Description: Token API para la plataforma Replicate (Generación de imágenes)
+        SecretString: "r8_1rYZHC0B73Gvmx2VxprhQ7FvOQHITvF19Vc92"
