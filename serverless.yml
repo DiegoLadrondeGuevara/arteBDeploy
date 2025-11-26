@@ -9,7 +9,7 @@ provider:
   memorySize: 1024
   timeout: 60
   role: arn:aws:iam::049376646199:role/LabRole
-
+  
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -20,13 +20,12 @@ provider:
     - Effect: Allow
       Action:
         - secretsmanager:GetSecretValue
-      Resource: arn:aws:secretsmanager:${self:provider.region}:049376646199:secret:ExternalApiKeySecret-*
+      Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ExternalApiKeySecret-*"
 
   environment:
     DYNAMODB_TABLE_NAME: ${self:custom.usuarioTableName.${self:provider.stage}}
     S3_BUCKET_NAME: ${self:custom.imagesBucketName.${self:provider.stage}}
     STAGE: ${self:provider.stage}
-    EXTERNAL_SECRET_NAME: ExternalApiKeySecret-${self:provider.stage}
 
 functions:
   register:
@@ -52,10 +51,10 @@ functions:
           path: /images/upload-url
           method: post
           cors: true
-          # Mantener el authorizer si la API Gateway ya existe
-          authorizer:
+          authorizer: 
             type: COGNITO_USER_POOLS
-            authorizerId: ${opt:authorizerId, 'none'}
+            authorizerId: 
+              Ref: CognitoAuthorizer
             identitySource: method.request.header.Authorization
 
   ai_generate:
@@ -67,10 +66,13 @@ functions:
           path: /images/generate
           method: post
           cors: true
-          authorizer:
+          authorizer: 
             type: COGNITO_USER_POOLS
-            authorizerId: ${opt:authorizerId, 'none'}
+            authorizerId: 
+              Ref: CognitoAuthorizer
             identitySource: method.request.header.Authorization
+    environment:
+      EXTERNAL_SECRET_NAME: ExternalApiKeySecret-${self:provider.stage}
 
 custom:
   usuarioTableName:
@@ -82,3 +84,64 @@ custom:
     dev: ${self:service}-dev-images-bucket
     test: ${self:service}-test-images-bucket
     prod: ${self:service}-prod-images-bucket
+
+resources:
+  Resources:
+    CognitoAuthorizer:
+      Type: AWS::ApiGateway::Authorizer
+      Properties:
+        Name: CognitoAuthorizer-${self:provider.stage}
+        Type: COGNITO_USER_POOLS
+        IdentitySource: "method.request.header.Authorization"
+        RestApiId: 
+          Ref: ApiGatewayRestApi
+        ProviderARNs:
+          - !GetAtt UserPool.Arn
+
+    ImagesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.imagesBucketName.${self:provider.stage}}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+                - PUT
+                - HEAD
+              AllowedOrigins:
+                - '*'
+              MaxAge: 3000
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false
+
+    ImagesBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: ImagesBucket
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Sid: PublicReadForAllObjects
+              Effect: Allow
+              Principal: "*"
+              Action:
+                - s3:GetObject
+              Resource:
+                Fn::Join:
+                  - ""
+                  - - "arn:aws:s3:::"
+                    - ${self:custom.imagesBucketName.${self:provider.stage}}
+                    - "/*"
+
+    ExternalApiKeySecret:
+      Type: AWS::SecretsManager::Secret
+      Properties:
+        Name: ExternalApiKeySecret-${self:provider.stage}
+        Description: Token API para la plataforma Replicate (Generación de imágenes)
+        SecretString: "r8_1rYZHC0B73Gvmx2VxprhQ7FvOQHITvF19Vc92"
