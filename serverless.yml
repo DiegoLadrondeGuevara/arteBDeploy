@@ -72,20 +72,20 @@ functions:
     environment:
       DYNAMODB_TABLE_NAME: ${self:custom.usuarioTableName.${self:provider.stage}}
 
-  get_upload_url:
-    handler: src/get_upload_url.lambda_handler
-    timeout: 29
-    events:
-      - http:
-          path: /images/upload-url
-          method: post
-          cors: true
-          authorizer:
-            name: TokenAuthorizer # Nombre del Authorizer en API Gateway
-            type: TOKEN
-            functionName: auth_checker # Lambda que valida el token
-            identitySource: method.request.header.Authorization # Header donde buscará el token
-            resultTtlInSeconds: 300 # Cachear la respuesta por 5 minutos
+get_upload_url:
+  handler: src/get_upload_url.lambda_handler
+  timeout: 29
+  events:
+    - http:
+        path: /images/upload-url
+        method: post
+        cors: true
+        authorizer:
+          name: TokenAuthorizer  # Nombre en API Gateway
+          type: TOKEN
+          functionName: auth_checker  # ⬅️ Lambda real
+          identitySource: method.request.header.Authorization
+          resultTtlInSeconds: 300
 
   ai_generate:
     handler: src/ai_generate.lambda_handler
