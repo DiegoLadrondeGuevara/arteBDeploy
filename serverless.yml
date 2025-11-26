@@ -7,9 +7,8 @@ provider:
   region: us-east-1
   stage: ${opt:stage, 'dev'}
   memorySize: 1024
-  timeout: 60
+  timeout: 29   # Máximo permitido por API Gateway
 
-  # Usa TU LabRole para TODO
   role: arn:aws:iam::851725327526:role/LabRole
   
   iamRoleStatements:
@@ -32,6 +31,7 @@ provider:
 functions:
   register:
     handler: src/register.lambda_handler
+    timeout: 29
     events:
       - http:
           path: /auth/register
@@ -40,6 +40,7 @@ functions:
 
   login:
     handler: src/login.lambda_handler
+    timeout: 29
     events:
       - http:
           path: /auth/login
@@ -48,29 +49,30 @@ functions:
 
   get_upload_url:
     handler: src/get_upload_url.lambda_handler
+    timeout: 29
     events:
       - http:
           path: /images/upload-url
           method: post
           cors: true
-          authorizer: 
+          authorizer:
             type: COGNITO_USER_POOLS
-            authorizerId: 
+            authorizerId:
               Ref: CognitoAuthorizer
             identitySource: method.request.header.Authorization
 
   ai_generate:
     handler: src/ai_generate.lambda_handler
-    timeout: 60
+    timeout: 29
     memorySize: 1024
     events:
       - http:
           path: /images/generate
           method: post
           cors: true
-          authorizer: 
+          authorizer:
             type: COGNITO_USER_POOLS
-            authorizerId: 
+            authorizerId:
               Ref: CognitoAuthorizer
             identitySource: method.request.header.Authorization
     environment:
@@ -87,11 +89,11 @@ custom:
     test: ${self:service}-${self:provider.stage}-images-${aws:accountId}
     prod: ${self:service}-${self:provider.stage}-images-${aws:accountId}
 
-  resources:
+resources:
   Resources:
 
     # ======================================================
-    # 🆕 1. CREAR EL USER POOL (Opción B)
+    # 1. USER POOL
     # ======================================================
     UserPool:
       Type: AWS::Cognito::UserPool
@@ -101,7 +103,17 @@ custom:
           - email
 
     # ======================================================
-    # 🆕 2. AUTHORZER QUE USA EL USER POOL QUE ACABAMOS DE CREAR
+    # 2. USER POOL CLIENT
+    # ======================================================
+    UserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:service}-${self:provider.stage}-appclient
+        UserPoolId: !Ref UserPool
+        GenerateSecret: false
+
+    # ======================================================
+    # 3. AUTHORIZER
     # ======================================================
     CognitoAuthorizer:
       Type: AWS::ApiGateway::Authorizer
@@ -109,13 +121,13 @@ custom:
         Name: CognitoAuthorizer-${self:provider.stage}
         Type: COGNITO_USER_POOLS
         IdentitySource: "method.request.header.Authorization"
-        RestApiId: 
+        RestApiId:
           Ref: ApiGatewayRestApi
         ProviderARNs:
           - !GetAtt UserPool.Arn
 
     # ======================================================
-    # S3 PUBLIC BUCKET
+    # 4. S3 BUCKET
     # ======================================================
     ImagesBucket:
       Type: AWS::S3::Bucket
@@ -123,14 +135,9 @@ custom:
         BucketName: ${self:custom.imagesBucketName.${self:provider.stage}}
         CorsConfiguration:
           CorsRules:
-            - AllowedHeaders:
-                - '*'
-              AllowedMethods:
-                - GET
-                - PUT
-                - HEAD
-              AllowedOrigins:
-                - '*'
+            - AllowedHeaders: ['*']
+              AllowedMethods: [GET, PUT, HEAD]
+              AllowedOrigins: ['*']
               MaxAge: 3000
         PublicAccessBlockConfiguration:
           BlockPublicAcls: false
@@ -141,29 +148,22 @@ custom:
     ImagesBucketPolicy:
       Type: AWS::S3::BucketPolicy
       Properties:
-        Bucket:
-          Ref: ImagesBucket
+        Bucket: !Ref ImagesBucket
         PolicyDocument:
           Version: "2012-10-17"
           Statement:
             - Sid: PublicReadForAllObjects
               Effect: Allow
               Principal: "*"
-              Action:
-                - s3:GetObject
-              Resource:
-                Fn::Join:
-                  - ""
-                  - - "arn:aws:s3:::"
-                    - ${self:custom.imagesBucketName.${self:provider.stage}}
-                    - "/*"
+              Action: s3:GetObject
+              Resource: !Sub "arn:aws:s3:::${self:custom.imagesBucketName.${self:provider.stage}}/*"
 
     # ======================================================
-    # SECRET EXTERNAL KEY (PARA REPLICATE.COM)
+    # 5. SECRET
     # ======================================================
     ExternalApiKeySecret:
       Type: AWS::SecretsManager::Secret
       Properties:
         Name: ExternalApiKeySecret-${self:provider.stage}
-        Description: Token API para la plataforma Replicate
+        Description: Token API para Replicate
         SecretString: "r8_1rYZHC0B73Gvmx2VxprhQ7FvOQHITvF19Vc92"
