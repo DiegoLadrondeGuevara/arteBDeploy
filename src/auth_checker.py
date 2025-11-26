@@ -1,4 +1,3 @@
-# src/auth_checker.py
 import json
 import boto3
 import os
@@ -29,16 +28,35 @@ def lambda_handler(event, context):
 
     print("🔎 EVENT AUTHORIZE:", json.dumps(event))
 
-    auth_header = event.get("authorizationToken")
     method_arn = event.get("methodArn")
 
-    if not auth_header or not auth_header.startswith("Bearer "):
-        print("⛔ No viene Authorization en formato Bearer")
+    # 1️⃣ Leer token normalizado desde TODOS los posibles lugares
+    auth_header = None
+
+    # A. El estándar para TOKEN authorizer
+    if "authorizationToken" in event:
+        auth_header = event["authorizationToken"]
+
+    # B. Pero si API Gateway falló y lo mete en headers
+    if not auth_header:
+        headers = event.get("headers") or {}
+        # normalizamos todas las keys a lowercase
+        normalized = {k.lower(): v for k, v in headers.items()}
+        auth_header = normalized.get("authorization")
+
+    if not auth_header:
+        print("⛔ No vino Authorization en ningún lugar")
         return generate_policy("unauthorized", "Deny", method_arn)
 
-    token = auth_header.replace("Bearer ", "").strip()
+    # 2️⃣ Normalizar: ignorar mayúsculas/minúsculas y espacios
+    auth_header = auth_header.strip()
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header[7:].strip()
+    else:
+        print("⛔ Authorization sin Bearer")
+        return generate_policy("unauthorized", "Deny", method_arn)
 
-    # Buscar token en DynamoDB
+    # 3️⃣ Buscar token en DynamoDB
     try:
         resp = table.scan(
             FilterExpression=Attr("token").eq(token),
@@ -48,12 +66,10 @@ def lambda_handler(event, context):
         if resp.get("Items"):
             user = resp["Items"][0]
             print("🟢 Token válido para usuario:", user["email"])
-
             return generate_policy(user["user_id"], "Allow", method_arn)
 
-        else:
-            print("⛔ Token NO encontrado")
-            return generate_policy("unauthorized", "Deny", method_arn)
+        print("⛔ Token NO encontrado")
+        return generate_policy("unauthorized", "Deny", method_arn)
 
     except Exception as e:
         print("🔥 ERROR AUTHORIZER:", str(e))

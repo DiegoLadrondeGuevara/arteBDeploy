@@ -12,7 +12,6 @@ BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'api-gestion-usuarios-dev-images-
 table = dynamodb.Table(DYNAMODB_TABLE_NAME)
 
 def lambda_handler(event, context):
-
     cors_headers = {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type,Authorization",
@@ -20,7 +19,6 @@ def lambda_handler(event, context):
         "Content-Type": "application/json"
     }
 
-    # --- Preflight CORS ---
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": cors_headers, "body": json.dumps({"ok": True})}
 
@@ -30,19 +28,16 @@ def lambda_handler(event, context):
         # ---- Autenticación ----
         headers = event.get("headers", {})
         auth_header = headers.get("Authorization") or headers.get("authorization")
-
         if not auth_header:
             return {"statusCode": 401, "headers": cors_headers, "body": json.dumps({"error": "No token"})}
 
         token = auth_header.replace("Bearer ", "").strip()
-
         response = table.scan(
             FilterExpression="#t = :t",
             ExpressionAttributeNames={"#t": "token"},
             ExpressionAttributeValues={":t": token},
             Limit=1
         )
-
         if not response.get("Items"):
             return {"statusCode": 401, "headers": cors_headers, "body": json.dumps({"error": "Token invalido"})}
 
@@ -51,7 +46,6 @@ def lambda_handler(event, context):
 
         # ---- Parámetros ----
         file_name_original = body.get("fileName")
-
         if not file_name_original:
             return {"statusCode": 400, "headers": cors_headers, "body": json.dumps({"error": "Falta fileName"})}
 
@@ -60,17 +54,18 @@ def lambda_handler(event, context):
         file_uuid = f"{uuid.uuid4()}.{ext}"
         s3_key = f"users/{user_id}/{file_uuid}"
 
-        # ---- URL PRESIGNADA sin ContentType ----
+        # ---- URL prefirmada SIN ContentType ----
         presigned_url = s3_client.generate_presigned_url(
             ClientMethod="put_object",
             Params={
                 "Bucket": BUCKET_NAME,
-                "Key": s3_key
-                # ⚠️ NO ContentType → evita errores de firma 403
+                "Key": s3_key,
+                "ContentType": ""   # <- obligatorio vacío
             },
             ExpiresIn=300,
             HttpMethod="PUT"
         )
+
 
         return {
             "statusCode": 200,
@@ -87,4 +82,5 @@ def lambda_handler(event, context):
         return {
             "statusCode": 500,
             "headers": cors_headers,
-            "body": json.dumps({"error": str(e)})}
+            "body": json.dumps({"error": str(e)})
+        }
