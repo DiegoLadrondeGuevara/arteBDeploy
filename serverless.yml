@@ -79,9 +79,8 @@ functions:
           method: post
           cors: true
           authorizer:
-            name: TokenAuthorizer
             type: TOKEN
-            functionName: auth_checker
+            name: auth_checker
             identitySource: method.request.header.Authorization
             resultTtlInSeconds: 300
 
@@ -95,9 +94,8 @@ functions:
           method: post
           cors: true
           authorizer:
-            name: TokenAuthorizer
             type: TOKEN
-            functionName: auth_checker
+            name: auth_checker
             identitySource: method.request.header.Authorization
             resultTtlInSeconds: 300
     environment:
