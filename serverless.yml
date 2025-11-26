@@ -8,6 +8,8 @@ provider:
   stage: ${opt:stage, 'dev'}
   memorySize: 1024
   timeout: 60
+
+  # Usa TU LabRole para TODO
   role: arn:aws:iam::851725327526:role/LabRole
   
   iamRoleStatements:
@@ -87,6 +89,20 @@ custom:
 
 resources:
   Resources:
+
+    # ======================================================
+    # 🆕 1. CREAR EL USER POOL (Opción B)
+    # ======================================================
+    UserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:service}-${self:provider.stage}-userpool
+        AutoVerifiedAttributes:
+          - email
+
+    # ======================================================
+    # 🆕 2. AUTHORZER QUE USA EL USER POOL QUE ACABAMOS DE CREAR
+    # ======================================================
     CognitoAuthorizer:
       Type: AWS::ApiGateway::Authorizer
       Properties:
@@ -98,6 +114,9 @@ resources:
         ProviderARNs:
           - !GetAtt UserPool.Arn
 
+    # ======================================================
+    # S3 PUBLIC BUCKET
+    # ======================================================
     ImagesBucket:
       Type: AWS::S3::Bucket
       Properties:
@@ -139,10 +158,12 @@ resources:
                     - ${self:custom.imagesBucketName.${self:provider.stage}}
                     - "/*"
 
+    # ======================================================
+    # SECRET EXTERNAL KEY (PARA REPLICATE.COM)
+    # ======================================================
     ExternalApiKeySecret:
       Type: AWS::SecretsManager::Secret
       Properties:
         Name: ExternalApiKeySecret-${self:provider.stage}
-        Description: Token API para la plataforma Replicate (Generación de imágenes)
+        Description: Token API para la plataforma Replicate
         SecretString: "r8_1rYZHC0B73Gvmx2VxprhQ7FvOQHITvF19Vc92"
-
