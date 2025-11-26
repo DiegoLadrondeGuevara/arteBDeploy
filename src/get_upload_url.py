@@ -3,107 +3,88 @@ import boto3
 import uuid
 import os
 
-# Inicialización de clientes y variables de entorno
 s3_client = boto3.client('s3', config=boto3.session.Config(signature_version='s3v4'))
 dynamodb = boto3.resource('dynamodb')
 
-# Variables de entorno
 DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'usuario_bd')
-BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'mi-bucket-imagenes-usuarios')
+BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'api-gestion-usuarios-dev-images-851725327526')
 
 table = dynamodb.Table(DYNAMODB_TABLE_NAME)
 
-
 def lambda_handler(event, context):
-    # Encabezados CORS
+
     cors_headers = {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type,Authorization",
+        "Access-Control-Allow-Methods": "OPTIONS,GET,PUT,POST",
+        "Content-Type": "application/json"
     }
 
+    # --- Preflight CORS ---
+    if event.get("httpMethod") == "OPTIONS":
+        return {"statusCode": 200, "headers": cors_headers, "body": json.dumps({"ok": True})}
+
     try:
-        # --- 1. PROCESAR BODY ---
-        body = json.loads(event['body']) if isinstance(event.get('body'), str) else event.get('body', {})
+        body = json.loads(event.get("body", "{}") or "{}")
 
-        # --- 2. AUTENTICACIÓN ---
-        headers = event.get('headers', {})
-        auth_header = headers.get('Authorization', headers.get('authorization', ''))
-        token = auth_header.replace('Bearer ', '').strip()
+        # ---- Autenticación ----
+        headers = event.get("headers", {})
+        auth_header = headers.get("Authorization") or headers.get("authorization")
 
-        if not token:
-            print("ERROR: Token no proporcionado.")
-            return {
-                'statusCode': 401,
-                'headers': cors_headers,
-                'body': json.dumps({'error': 'Token no proporcionado'})
-            }
+        if not auth_header:
+            return {"statusCode": 401, "headers": cors_headers, "body": json.dumps({"error": "No token"})}
+
+        token = auth_header.replace("Bearer ", "").strip()
 
         response = table.scan(
-            FilterExpression='#token = :token',
-            ExpressionAttributeNames={'#token': 'token'},
-            ExpressionAttributeValues={':token': token},
+            FilterExpression="#t = :t",
+            ExpressionAttributeNames={"#t": "token"},
+            ExpressionAttributeValues={":t": token},
             Limit=1
         )
 
-        if not response['Items']:
-            print(f"ERROR: Token inválido o no encontrado: {token[:10]}...")
-            return {
-                'statusCode': 401,
-                'headers': cors_headers,
-                'body': json.dumps({'error': 'Token inválido'})
-            }
+        if not response.get("Items"):
+            return {"statusCode": 401, "headers": cors_headers, "body": json.dumps({"error": "Token invalido"})}
 
-        user = response['Items'][0]
-        user_id = user['user_id']
-        print(f"Token validado para user_id: {user_id}")
+        user = response["Items"][0]
+        user_id = user["user_id"]
 
-        # --- 3. PARÁMETROS DEL FRONTEND ---
-        file_name_original = body.get('fileName')
-        content_type = body.get('fileType', 'image/jpeg')
+        # ---- Parámetros ----
+        file_name_original = body.get("fileName")
 
         if not file_name_original:
-            return {
-                'statusCode': 400,
-                'headers': cors_headers,
-                'body': json.dumps({'error': 'Falta parámetro: fileName'})
-            }
+            return {"statusCode": 400, "headers": cors_headers, "body": json.dumps({"error": "Falta fileName"})}
 
-        # --- 4. GENERAR CLAVE S3 ---
-        file_extension = file_name_original.split('.')[-1]
-        file_name_uuid = f"{uuid.uuid4()}.{file_extension}"
-        s3_key = f"users/{user_id}/{file_name_uuid}"
+        # ---- Generar key ----
+        ext = file_name_original.split(".")[-1]
+        file_uuid = f"{uuid.uuid4()}.{ext}"
+        s3_key = f"users/{user_id}/{file_uuid}"
 
-        # --- 5. GENERAR URL PREFIRMADA ---
+        # ---- URL PRESIGNADA sin ContentType ----
         presigned_url = s3_client.generate_presigned_url(
-            'put_object',
+            ClientMethod="put_object",
             Params={
-                'Bucket': BUCKET_NAME,
-                'Key': s3_key,
-                'ContentType': content_type,
-                'ContentSha256': 'UNSIGNED-PAYLOAD'
+                "Bucket": BUCKET_NAME,
+                "Key": s3_key
+                # ⚠️ NO ContentType → evita errores de firma 403
             },
-            ExpiresIn=300
+            ExpiresIn=300,
+            HttpMethod="PUT"
         )
 
-        # --- 6. RESPUESTA ---
         return {
-            'statusCode': 200,
-            'headers': cors_headers,
-            'body': json.dumps({
-                'message': 'URL de subida generada',
-                'uploadUrl': presigned_url,
-                's3Key': s3_key,
-                'expiresIn': 300
+            "statusCode": 200,
+            "headers": cors_headers,
+            "body": json.dumps({
+                "uploadUrl": presigned_url,
+                "s3Key": s3_key,
+                "expiresIn": 300
             })
         }
 
     except Exception as e:
-        print(f"Error fatal en GetUploadUrl: {str(e)}")
+        print("ERROR generate upload url:", str(e))
         return {
-            'statusCode': 500,
-            'headers': cors_headers,
-            'body': json.dumps({
-                'error': 'Error interno del servidor',
-                'details': str(e)
-            })
-        }
+            "statusCode": 500,
+            "headers": cors_headers,
+            "body": json.dumps({"error": str(e)})}

@@ -93,11 +93,7 @@ functions:
           path: /images/generate
           method: post
           cors: true
-          authorizer:
-            type: TOKEN
-            name: auth_checker
-            identitySource: method.request.header.Authorization
-            resultTtlInSeconds: 300
+          authorizer: auth_checker
     environment:
       EXTERNAL_SECRET_NAME: ExternalApiKeySecret-${self:provider.stage}
 
