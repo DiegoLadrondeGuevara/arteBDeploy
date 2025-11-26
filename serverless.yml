@@ -8,20 +8,19 @@ provider:
   stage: ${opt:stage, 'dev'}
   memorySize: 1024
   timeout: 60
+  role: arn:aws:iam::049376646199:role/LabRole
   
-  iam:
-    role: arn:aws:iam::049376646199:role/LabRole
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - rekognition:DetectLabels
-          - rekognition:DetectFaces
-        Resource: "*"
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - rekognition:DetectLabels
+        - rekognition:DetectFaces
+      Resource: "*"
 
-      - Effect: Allow
-        Action:
-          - secretsmanager:GetSecretValue
-        Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ExternalApiKeySecret-*"
+    - Effect: Allow
+      Action:
+        - secretsmanager:GetSecretValue
+      Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ExternalApiKeySecret-*"
 
   environment:
     DYNAMODB_TABLE_NAME: ${self:custom.usuarioTableName.${self:provider.stage}}
@@ -45,22 +44,20 @@ functions:
           method: post
           cors: true
 
-get_upload_url:
+  get_upload_url:
     handler: src/get_upload_url.lambda_handler
     events:
       - http:
           path: /images/upload-url
           method: post
           cors: true
-          # ⬇️ CORRECCIÓN CLAVE: Agrega el Authorizer ⬇️
           authorizer: 
             type: COGNITO_USER_POOLS
             authorizerId: 
-              Ref: CognitoAuthorizer # Usa la referencia lógica de tu User Pool Authorizer
-            identitySource: method.request.header.Authorization # Esto es lo más estándar
-            # Puedes probar identitySource: method.request.header.auth_token si el frontend no usa "Bearer "
+              Ref: CognitoAuthorizer
+            identitySource: method.request.header.Authorization
 
-ai_generate:
+  ai_generate:
     handler: src/ai_generate.lambda_handler
     timeout: 60
     memorySize: 1024
@@ -69,7 +66,6 @@ ai_generate:
           path: /images/generate
           method: post
           cors: true
-          # ⬇️ CORRECCIÓN CLAVE: Agrega el Authorizer ⬇️
           authorizer: 
             type: COGNITO_USER_POOLS
             authorizerId: 
@@ -91,7 +87,6 @@ custom:
 
 resources:
   Resources:
-    # ⬇️ DEBES DEFINIR EL AUTHORIZER DE COGNITO SI AÚN NO LO HAS HECHO ⬇️
     CognitoAuthorizer:
       Type: AWS::ApiGateway::Authorizer
       Properties:
@@ -101,14 +96,12 @@ resources:
         RestApiId: 
           Ref: ApiGatewayRestApi
         ProviderARNs:
-          - !GetAtt UserPool.Arn # Reemplaza UserPool con la referencia correcta a tu User Pool
+          - !GetAtt UserPool.Arn
 
-    # --- Bucket S3 PÚBLICO ---
     ImagesBucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ${self:custom.imagesBucketName.${self:provider.stage}}
-
         CorsConfiguration:
           CorsRules:
             - AllowedHeaders:
@@ -120,7 +113,6 @@ resources:
               AllowedOrigins:
                 - '*'
               MaxAge: 3000
-
         PublicAccessBlockConfiguration:
           BlockPublicAcls: false
           BlockPublicPolicy: false
