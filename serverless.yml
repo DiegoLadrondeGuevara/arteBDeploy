@@ -8,7 +8,7 @@ provider:
   stage: ${opt:stage, 'dev'}
   memorySize: 1024
   timeout: 60
-  role: arn:aws:iam::049376646199:role/LabRole
+  role: arn:aws:iam::851725327526:role/LabRole
   
   iamRoleStatements:
     - Effect: Allow
@@ -145,3 +145,4 @@ resources:
         Name: ExternalApiKeySecret-${self:provider.stage}
         Description: Token API para la plataforma Replicate (Generación de imágenes)
         SecretString: "r8_1rYZHC0B73Gvmx2VxprhQ7FvOQHITvF19Vc92"
+
