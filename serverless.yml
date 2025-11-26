@@ -65,6 +65,13 @@ functions:
             allowCredentials: false
 
 
+  auth_checker: # Nueva función para validar tu token simple
+    handler: src/auth_checker.lambda_handler
+    memorySize: 128
+    timeout: 10
+    environment:
+      DYNAMODB_TABLE_NAME: ${self:custom.usuarioTableName.${self:provider.stage}}
+
   get_upload_url:
     handler: src/get_upload_url.lambda_handler
     timeout: 29
@@ -74,10 +81,29 @@ functions:
           method: post
           cors: true
           authorizer:
-            type: COGNITO_USER_POOLS
-            authorizerId:
-              Ref: CognitoAuthorizer
+            name: TokenAuthorizer # Nombre del Authorizer en API Gateway
+            type: TOKEN
+            functionName: auth_checker # Lambda que valida el token
+            identitySource: method.request.header.Authorization # Header donde buscará el token
+            resultTtlInSeconds: 300 # Cachear la respuesta por 5 minutos
+
+  ai_generate:
+    handler: src/ai_generate.lambda_handler
+    timeout: 60
+    memorySize: 1024
+    events:
+      - http:
+          path: /images/generate
+          method: post
+          cors: true
+          authorizer:
+            name: TokenAuthorizer
+            type: TOKEN
+            functionName: auth_checker
             identitySource: method.request.header.Authorization
+            resultTtlInSeconds: 300
+    environment:
+      EXTERNAL_SECRET_NAME: ExternalApiKeySecret-${self:provider.stage}
 
   ai_generate:
     handler: src/ai_generate.lambda_handler
