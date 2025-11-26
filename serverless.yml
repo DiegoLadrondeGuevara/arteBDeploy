@@ -79,9 +79,15 @@ functions:
           method: post
           cors: true
           authorizer:
-            name: TokenAuthorizer
             type: TOKEN
-            functionName: auth_checker
+            arn: 
+              Fn::Join:
+                - ":"
+                - - "arn:aws:lambda"
+                  - ${self:provider.region}
+                  - ${aws:accountId}
+                  - "function"
+                  - ${self:service}-${self:provider.stage}-auth_checker
             identitySource: method.request.header.Authorization
             resultTtlInSeconds: 300
 
@@ -95,9 +101,15 @@ functions:
           method: post
           cors: true
           authorizer:
-            name: TokenAuthorizer
             type: TOKEN
-            functionName: auth_checker
+            arn:
+              Fn::Join:
+                - ":"
+                - - "arn:aws:lambda"
+                  - ${self:provider.region}
+                  - ${aws:accountId}
+                  - "function"
+                  - ${self:service}-${self:provider.stage}-auth_checker
             identitySource: method.request.header.Authorization
             resultTtlInSeconds: 300
     environment:
