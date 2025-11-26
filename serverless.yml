@@ -29,7 +29,6 @@ provider:
     STAGE: ${self:provider.stage}
 
 functions:
-
   register:
     handler: src/register.lambda_handler
     timeout: 29
@@ -64,7 +63,7 @@ functions:
               - X-Amz-Security-Token
             allowCredentials: false
 
-  auth_checker:
+  auth_checker: # Nueva función para validar tu token simple
     handler: src/auth_checker.lambda_handler
     memorySize: 128
     timeout: 10
@@ -116,6 +115,9 @@ custom:
 resources:
   Resources:
 
+    # ======================================================
+    # 1. USER POOL
+    # ======================================================
     UserPool:
       Type: AWS::Cognito::UserPool
       Properties:
@@ -123,6 +125,9 @@ resources:
         AutoVerifiedAttributes:
           - email
 
+    # ======================================================
+    # 2. USER POOL CLIENT
+    # ======================================================
     UserPoolClient:
       Type: AWS::Cognito::UserPoolClient
       Properties:
@@ -130,17 +135,23 @@ resources:
         UserPoolId: !Ref UserPool
         GenerateSecret: false
 
+    # ======================================================
+    # 3. AUTHORIZER
+    # ======================================================
     CognitoAuthorizer:
       Type: AWS::ApiGateway::Authorizer
       Properties:
         Name: CognitoAuthorizer-${self:provider.stage}
         Type: COGNITO_USER_POOLS
         IdentitySource: "method.request.header.Authorization"
-        RestApiId: 
+        RestApiId:
           Ref: ApiGatewayRestApi
         ProviderARNs:
           - !GetAtt UserPool.Arn
 
+    # ======================================================
+    # 4. DYNAMODB TABLE
+    # ======================================================
     UsuarioTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -153,6 +164,9 @@ resources:
           - AttributeName: email
             KeyType: HASH
 
+    # ======================================================
+    # 5. S3 BUCKET
+    # ======================================================
     ImagesBucket:
       Type: AWS::S3::Bucket
       Properties:
@@ -182,6 +196,9 @@ resources:
               Action: s3:GetObject
               Resource: !Sub "arn:aws:s3:::${self:custom.imagesBucketName.${self:provider.stage}}/*"
 
+    # ======================================================
+    # 6. SECRET
+    # ======================================================
     ExternalApiKeySecret:
       Type: AWS::SecretsManager::Secret
       Properties:
