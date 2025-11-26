@@ -105,23 +105,6 @@ functions:
     environment:
       EXTERNAL_SECRET_NAME: ExternalApiKeySecret-${self:provider.stage}
 
-  ai_generate:
-    handler: src/ai_generate.lambda_handler
-    timeout: 29
-    memorySize: 1024
-    events:
-      - http:
-          path: /images/generate
-          method: post
-          cors: true
-          authorizer:
-            type: COGNITO_USER_POOLS
-            authorizerId:
-              Ref: CognitoAuthorizer
-            identitySource: method.request.header.Authorization
-    environment:
-      EXTERNAL_SECRET_NAME: ExternalApiKeySecret-${self:provider.stage}
-
 custom:
   usuarioTableName:
     dev: ${self:service}-dev-usuario_bd
