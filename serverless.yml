@@ -45,15 +45,22 @@ functions:
           method: post
           cors: true
 
-  get_upload_url:
+get_upload_url:
     handler: src/get_upload_url.lambda_handler
     events:
       - http:
           path: /images/upload-url
           method: post
           cors: true
+          # ⬇️ CORRECCIÓN CLAVE: Agrega el Authorizer ⬇️
+          authorizer: 
+            type: COGNITO_USER_POOLS
+            authorizerId: 
+              Ref: CognitoAuthorizer # Usa la referencia lógica de tu User Pool Authorizer
+            identitySource: method.request.header.Authorization # Esto es lo más estándar
+            # Puedes probar identitySource: method.request.header.auth_token si el frontend no usa "Bearer "
 
-  ai_generate:
+ai_generate:
     handler: src/ai_generate.lambda_handler
     timeout: 60
     memorySize: 1024
@@ -62,6 +69,12 @@ functions:
           path: /images/generate
           method: post
           cors: true
+          # ⬇️ CORRECCIÓN CLAVE: Agrega el Authorizer ⬇️
+          authorizer: 
+            type: COGNITO_USER_POOLS
+            authorizerId: 
+              Ref: CognitoAuthorizer
+            identitySource: method.request.header.Authorization
     environment:
       EXTERNAL_SECRET_NAME: ExternalApiKeySecret-${self:provider.stage}
 
@@ -78,17 +91,17 @@ custom:
 
 resources:
   Resources:
-    UsuarioDBTable:
-      Type: AWS::DynamoDB::Table
+    # ⬇️ DEBES DEFINIR EL AUTHORIZER DE COGNITO SI AÚN NO LO HAS HECHO ⬇️
+    CognitoAuthorizer:
+      Type: AWS::ApiGateway::Authorizer
       Properties:
-        TableName: ${self:custom.usuarioTableName.${self:provider.stage}}
-        AttributeDefinitions:
-          - AttributeName: email
-            AttributeType: S
-        KeySchema:
-          - AttributeName: email
-            KeyType: HASH
-        BillingMode: PAY_PER_REQUEST
+        Name: CognitoAuthorizer-${self:provider.stage}
+        Type: COGNITO_USER_POOLS
+        IdentitySource: "method.request.header.Authorization"
+        RestApiId: 
+          Ref: ApiGatewayRestApi
+        ProviderARNs:
+          - !GetAtt UserPool.Arn # Reemplaza UserPool con la referencia correcta a tu User Pool
 
     # --- Bucket S3 PÚBLICO ---
     ImagesBucket:
