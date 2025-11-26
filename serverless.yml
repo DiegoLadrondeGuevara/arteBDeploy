@@ -46,7 +46,6 @@ functions:
               - X-Amz-Security-Token
             allowCredentials: false
 
-
   login:
     handler: src/login.lambda_handler
     timeout: 29
@@ -64,7 +63,6 @@ functions:
               - X-Amz-Security-Token
             allowCredentials: false
 
-
   auth_checker: # Nueva función para validar tu token simple
     handler: src/auth_checker.lambda_handler
     memorySize: 128
@@ -72,20 +70,20 @@ functions:
     environment:
       DYNAMODB_TABLE_NAME: ${self:custom.usuarioTableName.${self:provider.stage}}
 
-get_upload_url:
-  handler: src/get_upload_url.lambda_handler
-  timeout: 29
-  events:
-    - http:
-        path: /images/upload-url
-        method: post
-        cors: true
-        authorizer:
-          name: TokenAuthorizer  # Nombre en API Gateway
-          type: TOKEN
-          functionName: auth_checker  # ⬅️ Lambda real
-          identitySource: method.request.header.Authorization
-          resultTtlInSeconds: 300
+  get_upload_url:
+    handler: src/get_upload_url.lambda_handler
+    timeout: 29
+    events:
+      - http:
+          path: /images/upload-url
+          method: post
+          cors: true
+          authorizer:
+            name: TokenAuthorizer
+            type: TOKEN
+            functionName: auth_checker
+            identitySource: method.request.header.Authorization
+            resultTtlInSeconds: 300
 
   ai_generate:
     handler: src/ai_generate.lambda_handler
