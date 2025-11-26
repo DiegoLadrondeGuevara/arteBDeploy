@@ -36,7 +36,16 @@ functions:
       - http:
           path: /auth/register
           method: post
-          cors: true
+          cors:
+            origin: "*"
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+
 
   login:
     handler: src/login.lambda_handler
@@ -45,7 +54,16 @@ functions:
       - http:
           path: /auth/login
           method: post
-          cors: true
+          cors:
+            origin: "*"
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+
 
   get_upload_url:
     handler: src/get_upload_url.lambda_handler
