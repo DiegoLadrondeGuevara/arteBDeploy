@@ -127,7 +127,22 @@ resources:
           - !GetAtt UserPool.Arn
 
     # ======================================================
-    # 4. S3 BUCKET
+    # 4. DYNAMODB TABLE
+    # ======================================================
+    UsuarioTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.usuarioTableName.${self:provider.stage}}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: email
+            KeyType: HASH
+
+    # ======================================================
+    # 5. S3 BUCKET
     # ======================================================
     ImagesBucket:
       Type: AWS::S3::Bucket
@@ -159,7 +174,7 @@ resources:
               Resource: !Sub "arn:aws:s3:::${self:custom.imagesBucketName.${self:provider.stage}}/*"
 
     # ======================================================
-    # 5. SECRET
+    # 6. SECRET
     # ======================================================
     ExternalApiKeySecret:
       Type: AWS::SecretsManager::Secret
