@@ -83,11 +83,11 @@ custom:
     prod: ${self:service}-prod-usuario_bd
 
   imagesBucketName:
-    dev: ${self:service}-dev-images-bucket
-    test: ${self:service}-test-images-bucket
-    prod: ${self:service}-prod-images-bucket
+    dev: ${self:service}-${self:provider.stage}-images-${aws:accountId}
+    test: ${self:service}-${self:provider.stage}-images-${aws:accountId}
+    prod: ${self:service}-${self:provider.stage}-images-${aws:accountId}
 
-resources:
+  resources:
   Resources:
 
     # ======================================================
